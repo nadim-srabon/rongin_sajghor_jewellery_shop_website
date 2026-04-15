@@ -40,10 +40,11 @@ $customers = $conn->query("
             <div class="admin-logo">Admin Panel</div>
 
             <ul class="admin-menu">
-                <li><a href="dashboard.php">Dashboard</a></li>
+                <li><a href="dashboard.php" class="active">Dashboard</a></li>
                 <li><a href="orders.php">Orders</a></li>
                 <li><a href="products.php">Products</a></li>
-                <li><a href="customers.php" class="active">Customers</a></li>
+                <li><a href="customers.php">Customers</a></li>
+                <li><a href="inventory.php">Inventory</a></li>
                 <li><a href="../logout.php">Logout</a></li>
             </ul>
         </aside>

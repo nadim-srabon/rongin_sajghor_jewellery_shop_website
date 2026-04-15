@@ -2,12 +2,10 @@
 session_start();
 require_once '../config/db.php';
 
-if (!isset($_SESSION['user_id'])) {
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     header("Location: ../login.php");
     exit();
 }
-
-$user_id = (int) $_SESSION['user_id'];
 
 if (!isset($_GET['id'])) {
     header("Location: orders.php");
@@ -16,145 +14,126 @@ if (!isset($_GET['id'])) {
 
 $order_id = (int) $_GET['id'];
 
-/* FETCH ORDER */
 $stmt = $conn->prepare("
-    SELECT * FROM orders 
-    WHERE id = ? AND user_id = ?
-");
-$stmt->bind_param("ii", $order_id, $user_id);
-$stmt->execute();
-$order = $stmt->get_result()->fetch_assoc();
-
-if (!$order) {
-    echo "<h2 style='text-align:center;margin:50px;'>Order not found</h2>";
-    exit();
-}
-
-/* FETCH ITEMS */
-$stmt = $conn->prepare("
-    SELECT oi.*, p.name 
-    FROM order_items oi
-    JOIN products p ON oi.product_id = p.id
-    WHERE oi.order_id = ?
+    SELECT * FROM orders WHERE id = ?
 ");
 $stmt->bind_param("i", $order_id);
 $stmt->execute();
-$items = $stmt->get_result();
+$order = $stmt->get_result()->fetch_assoc();
 
-// include '../includes/header.php';
+$items = $conn->query("
+    SELECT order_items.*, products.name
+    FROM order_items
+    JOIN products ON order_items.product_id = products.id
+    WHERE order_items.order_id = $order_id
+");
 ?>
 
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rongin Sajghor</title>
-
+    <title>Order Details</title>
     <link rel="stylesheet" href="/jewellery-store/assets/css/style.css">
-
 </head>
 
 <body>
 
-    <header>
-        <div class="logo">RONGIN SAJGHOR</div>
+    <div class="admin-wrapper">
 
-        <nav>
-            <ul>
-                <!-- <li><a href="index.php">Home</a></li>
-                <li><a href="shop.php">Shop</a></li>
-                <li><a href="#">Collections</a></li>
-                <li><a href="journal.php">Journal</a></li>
-                <li><a href="about.php">About</a></li>
-                <li><a href="contact.php">Contact</a></li> -->
+        <aside class="admin-sidebar">
+            <div class="admin-logo">Admin Panel</div>
+
+            <ul class="admin-menu">
+                <li><a href="dashboard.php">Dashboard</a></li>
+                <li><a href="orders.php" class="active">Orders</a></li>
             </ul>
-        </nav>
+        </aside>
 
-        <div class="nav-icons">
-            <!-- <a href="login.php">Account</a>
-            <a href="#">Cart</a> -->
-        </div>
-    </header>
+        <main class="admin-content">
+            <h1 class="page-title">Order #
+                <?php echo $order['id']; ?>
+            </h1>
 
-    <!-- HERO -->
-    <section class="account-hero">
-        <div class="hero-overlay"></div>
-        <div class="hero-content">
-            <h1>Order Details</h1>
-            <p>View your complete order information</p>
-        </div>
-    </section>
+            <?php if (isset($_GET['msg'])): ?>
 
-    <!-- TOP MENU -->
-    <div class="account-top-menu">
-        <a href="dashboard.php" class="menu-link">Dashboard</a>
-        <a href="orders.php" class="menu-link active">My Orders</a>
-        <a href="track-order.php" class="menu-link">Track Order</a>
-        <a href="profile.php" class="menu-link">My Profile</a>
-        <a href="../cart.php" class="menu-link">My Cart</a>
-        <a href="../logout.php" class="menu-link logout-link">Logout</a>
-    </div>
-
-    <div class="dashboard-wrapper">
-
-        <div class="order-details-card">
-
-            <!-- HEADER -->
-            <div class="order-header">
-                <div>
-                    <h2>Order #<?php echo $order['id']; ?></h2>
-                    <p><?php echo date("d M Y", strtotime($order['created_at'])); ?></p>
-                </div>
-
-                <span class="status-badge status-<?php echo strtolower($order['status']); ?>">
-                    <?php echo ucfirst($order['status']); ?>
-                </span>
-            </div>
-
-            <!-- DELIVERY INFO -->
-            <div class="order-section">
-                <h3>Delivery Information</h3>
-                <p><strong>Name:</strong> <?php echo htmlspecialchars($order['customer_name']); ?></p>
-                <p><strong>Phone:</strong> <?php echo htmlspecialchars($order['phone']); ?></p>
-                <p><strong>Address:</strong> <?php echo htmlspecialchars($order['address']); ?></p>
-                <p><strong>City:</strong> <?php echo htmlspecialchars($order['city']); ?></p>
-
-                <?php if (!empty($order['order_note'])): ?>
-                    <p><strong>Note:</strong> <?php echo htmlspecialchars($order['order_note']); ?></p>
+                <?php if ($_GET['msg'] == 'approved'): ?>
+                    <div class="alert alert-success">
+                        ✅ Order approved successfully and stock updated.
+                    </div>
                 <?php endif; ?>
+
+                <?php if ($_GET['msg'] == 'cancelled'): ?>
+                    <div class="alert alert-danger">
+                        ❌ Order has been cancelled successfully.
+                    </div>
+                <?php endif; ?>
+
+            <?php endif; ?>
+
+            <div class="dash-card">
+                <h4>Customer</h4>
+                <p>
+                    <?php echo htmlspecialchars($order['customer_name']); ?>
+                </p>
+                <p>
+                    <?php echo htmlspecialchars($order['phone']); ?>
+                </p>
+                <p>
+                    <?php echo htmlspecialchars($order['address']); ?>
+                </p>
+                <p>
+                    <?php echo htmlspecialchars($order['city']); ?>
+                </p>
             </div>
 
-            <!-- ITEMS -->
-            <div class="order-section">
-                <h3>Ordered Items</h3>
+            <br>
+
+            <table class="admin-table">
+                <tr>
+                    <th>Product</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                </tr>
 
                 <?php while ($item = $items->fetch_assoc()): ?>
-                    <?php $subtotal = $item['price'] * $item['quantity']; ?>
-
-                    <div class="order-item">
-                        <div>
-                            <h4><?php echo htmlspecialchars($item['name']); ?></h4>
-                            <p>Qty: <?php echo $item['quantity']; ?></p>
-                        </div>
-
-                        <div class="text-right">
-                            <p>৳<?php echo number_format($item['price'], 2); ?></p>
-                            <strong>৳<?php echo number_format($subtotal, 2); ?></strong>
-                        </div>
-                    </div>
-
+                    <tr>
+                        <td>
+                            <?php echo htmlspecialchars($item['name']); ?>
+                        </td>
+                        <td>
+                            <?php echo $item['quantity']; ?>
+                        </td>
+                        <td>৳
+                            <?php echo number_format($item['price'], 2); ?>
+                        </td>
+                    </tr>
                 <?php endwhile; ?>
-            </div>
+            </table>
 
-            <!-- TOTAL -->
-            <div class="order-total-box">
-                <h3>Total: ৳<?php echo number_format($order['total_amount'], 2); ?></h3>
-            </div>
+            <br>
+            <a href="generate-invoice.php?id=<?php echo $order['id']; ?>" class="btn btn-view" target="_blank">
+                Generate Invoice (PDF)
+            </a>
+            <a href="generate-invoice.php?id=<?php echo $order['id']; ?>" class="btn btn-view" target="_blank">
+                Download Invoice PDF
+            </a>
 
-        </div>
+            <?php if ($order['status'] == 'Pending'): ?>
+                <a href="update-order-status.php?id=<?php echo $order_id; ?>&status=Approved" class="btn btn-approve">
+                    Approve Order
+                </a>
+
+
+                <a href="update-order-status.php?id=<?php echo $order_id; ?>&status=Cancelled" class="btn btn-cancel">
+                    Cancel Order
+                </a>
+            <?php endif; ?>
+
+        </main>
 
     </div>
 
-    <?php include '../includes/footer.php'; ?>
+</body>
+
+</html>
